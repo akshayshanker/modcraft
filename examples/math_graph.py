@@ -2,8 +2,8 @@ import pprint
 
 import numpy as np
 
-from graphcraft.graph import Graph
-from graphcraft.node import Node
+from modcraft.graph import Graph
+from modcraft.node import Node
 
 
 class Add:
