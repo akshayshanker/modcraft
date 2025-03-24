@@ -41,27 +41,37 @@ After installing, you can run the examples from any directory.
 
 ## Examples Overview
 
-### 1. `quick_workflow.py`
+### 1. `lifecycle_flags_example.py`
 
-Demonstrates the high-level API to create and solve a circuit in one function call, following the 4-step workflow:
+Demonstrates the new features of CircuitCraft 1.2.0:
+1. New terminology: Perch (formerly Node), CircuitBoard (formerly Graph), Mover (formerly Edge)
+2. Renamed attributes: comp (formerly function), sim (formerly distribution)
+3. Lifecycle flags to track circuit board state through the workflow
+4. Extended Mover with parameters and numerical_hyperparameters
+
+### 2. `quick_workflow.py`
+
+Demonstrates the high-level API to create and solve a circuit in one function call, following the workflow:
 1. Circuit Creation
-2. Configuration
-3. Initialization
-4. Solution
+2. Model Finalization
+3. Portability Check
+4. Initialization
+5. Solution
 
 Uses simple mathematical operations (square and add_ten) to create a basic computational circuit.
 
-### 2. `workflow_steps.py`
+### 3. `workflow_steps.py`
 
-Shows the detailed step-by-step approach to the 4-step workflow:
-1. Circuit Creation - Creating the graph structure with nodes and edges
-2. Configuration - Assigning operations to edges
-3. Initialization - Setting initial values
-4. Solution - Executing operations to compute results
+Shows the detailed step-by-step approach to the circuit workflow:
+1. Circuit Creation - Creating the circuit board structure with perches and movers
+2. Model Finalization - Finalizing the model once all components are added
+3. Portability - Creating computational methods from maps
+4. Initialization - Setting initial values
+5. Solution - Executing operations to compute results
 
 This example provides more insight into the internal workings of CircuitCraft.
 
-### 3. `math_circuit.py`
+### 4. `math_circuit.py`
 
 Demonstrates a more complex circuit with matrix and vector operations:
 - Backward operations that square vectors
@@ -69,21 +79,21 @@ Demonstrates a more complex circuit with matrix and vector operations:
 
 This example shows how CircuitCraft can be used for more sophisticated mathematical operations.
 
-### 4. `quick_circuit.py`
+### 5. `quick_circuit.py`
 
 Shows how to use the high-level API to create and solve a circuit in one step, similar to `quick_workflow.py` but with more complex matrix operations.
 
-### 5. `math_graph.py`
+### 6. `math_graph.py`
 
-Demonstrates a mathematical graph with matrix operations, showing how to create a computational graph with multiple operations.
+Demonstrates a mathematical circuit with matrix operations, showing how to create a computational circuit with multiple operations.
 
-### 6. `individual_edges.py`
+### 7. `individual_edges.py`
 
-Shows how to execute individual edge operations in a circuit for fine-grained control.
+Shows how to execute individual movers in a circuit for fine-grained control and how to work with the comp and sim attributes of perches.
 
-### 7. `separate_solvers.py`
+### 8. `separate_solvers.py`
 
-Demonstrates how to use separate solvers for backward and forward operations, which is useful for economic modeling.
+Demonstrates how to use separate solvers for backward and forward operations, which is useful for economic modeling. Shows the use of lifecycle flags to track the state of the circuit through the solution process.
 
 ## Troubleshooting
 

@@ -1,3 +1,15 @@
+"""
+CircuitCraft 1.2.0 Example: Mathematical Circuit with Matrix Operations
+----------------------------------------------------------------------
+This example demonstrates the CircuitCraft concept where:
+- Perches represent data (inputs and outputs)
+- Movers represent operations between perches
+
+The example includes both backward and forward operations:
+1. Backward operations: Add and Power
+2. Forward operations: MatrixMultiply
+"""
+
 import pprint
 import sys
 import os
@@ -6,14 +18,12 @@ import numpy as np
 # Try different import approaches to make the script runnable from various locations
 try:
     # When running from the project root or if package is installed
-    from circuitcraft.graph import Graph
-    from circuitcraft.node import Node
+    from src.circuitcraft import CircuitBoard, Perch
 except ImportError:
     try:
         # When running from examples directory with src structure
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        from src.circuitcraft.graph import Graph
-        from src.circuitcraft.node import Node
+        from src.circuitcraft import CircuitBoard, Perch
     except ImportError:
         raise ImportError(
             "Unable to import circuitcraft. Make sure you're either:\n"
@@ -23,123 +33,161 @@ except ImportError:
         )
 
 def main():
-    """
-    This example demonstrates the CircuitCraft concept where:
-    - Nodes represent data (inputs and outputs)
-    - Edges represent operations
-
-    We have two types of operations:
-    1. Backward operations: Add and Power
-    2. Forward operations: MatrixMultiply
-    """
-    print("CircuitCraft Math Graph Example")
+    print("CircuitCraft 1.2.0 Math Circuit Example")
     print("-------------------------------")
 
-    # Define operations as functions
-    def add(a, b):
-        return a + b
+    # Define computational methods
+    def add(data):
+        """Add two arrays"""
+        a = data.get("a")
+        b = data.get("b")
+        if a is not None and b is not None:
+            return {"comp": a + b}
+        return {}
 
-    def power(x, exponent=2):
-        return x ** exponent
+    def power(data):
+        """Raise array to a power"""
+        comp_value = data.get("comp")
+        if comp_value is not None:
+            return {"comp": comp_value ** 3}
+        return {}
 
-    def matrix_multiply(a, b):
-        return np.matmul(a, b)
+    def matrix_multiply(data):
+        """Multiply matrices"""
+        matrix_a = data.get("matrix_a")
+        matrix_c = data.get("matrix_c")
+        if matrix_a is not None and matrix_c is not None:
+            return {"sim": np.matmul(matrix_a, matrix_c)}
+        return {}
 
     # Create our NumPy arrays to be operated on
     a = np.array([[1, 2, 3], [4, 5, 6]])
     b = np.array([[2, 4, 6], [8, 10, 12]])
     c = np.array([[1, 0], [0, 1], [2, 1]])  # A 3x2 matrix for the forward operation
 
+    # 1. CIRCUIT CREATION
+    print("\n1. CIRCUIT CREATION")
+    
     # Create a circuit
-    circuit = Graph(name="MathGraph")
+    circuit = CircuitBoard(name="MathCircuit")
     
-    # Add nodes with appropriate data keys
-    circuit.add_node(Node("add_result", {"value": None}))
-    # Make sure power_result has both 'value' and 'matrix_c' keys
-    circuit.add_node(Node("power_result", {"value": None, "matrix_c": None}))
-    circuit.add_node(Node("transformed_matrix", {"value": None}))
+    # Add perches with appropriate data keys
+    circuit.add_perch(Perch("add_result", {"comp": None, "sim": None, "a": None, "b": None}))
+    # Make sure power_result has both 'comp' and 'matrix_c' keys
+    circuit.add_perch(Perch("power_result", {"comp": None, "sim": None, "matrix_a": None, "matrix_c": None}))
+    circuit.add_perch(Perch("transformed_matrix", {"comp": None, "sim": None}))
     
-    # Add edges
-    # Backward operations
-    circuit.add_edge("add_result", "power_result", edge_type="backward")
+    # Add movers
+    # Backward mover
+    circuit.add_mover(
+        source_name="add_result", 
+        target_name="power_result",
+        source_key="comp", 
+        target_key="comp",
+        edge_type="backward"
+    )
     
-    # Forward operations
-    circuit.add_edge("power_result", "transformed_matrix", edge_type="forward")
+    # Forward mover
+    circuit.add_mover(
+        source_name="power_result", 
+        target_name="transformed_matrix",
+        source_keys=["matrix_a", "matrix_c"], 
+        target_key="sim",
+        edge_type="forward"
+    )
     
-    # Configure the operations
-    # Define a custom operation to raise to a power
-    def power_operation(x):
-        return x ** 3
+    print(f"Circuit board created with 3 perches and 2 movers")
     
-    # Define a custom operation for matrix multiplication
-    def matrix_multiply_operation(matrix_a, matrix_c):
-        return np.matmul(matrix_a, matrix_c)
+    # 2. MODEL FINALIZATION
+    print("\n2. MODEL FINALIZATION")
     
-    # Assign operations to edges
-    circuit.set_edge_operation("add_result", "power_result", power_operation,
-                              source_key="value", target_key="value",
-                              edge_type="backward")
+    # Define maps for movers
+    power_map = {
+        "operation": "power",
+        "parameters": {"exponent": 3}
+    }
     
-    circuit.set_edge_operation("power_result", "transformed_matrix", matrix_multiply_operation,
-                              source_keys=["value", "matrix_c"], target_key="value",
-                              edge_type="forward")
+    matrix_multiply_map = {
+        "operation": "matrix_multiply",
+        "parameters": {}
+    }
     
-    # Configure the circuit
-    circuit.configure()
-    print(f"Circuit configured: {circuit.is_configured}")
+    # Assign maps to movers
+    circuit.set_mover_map("add_result", "power_result", "backward", power_map)
+    circuit.set_mover_map("power_result", "transformed_matrix", "forward", matrix_multiply_map)
+    
+    # Define computational methods for movers
+    # Set comp functions directly
+    circuit.set_mover_comp("add_result", "power_result", "backward", power)
+    circuit.set_mover_comp("power_result", "transformed_matrix", "forward", matrix_multiply)
+    
+    # Finalize the model
+    circuit.finalize_model()
+    print(f"Circuit model finalized: has_model={circuit.has_model}")
+    
+    # 3. PORTABILITY
+    print("\n3. PORTABILITY")
+    
+    # Make the circuit portable
+    circuit.make_portable()
+    print(f"Circuit is now portable: {circuit.is_portable}")
+    
+    # 4. INITIALIZATION
+    print("\n4. INITIALIZATION")
     
     # Initialize with values
-    circuit.set_node_data("add_result", {"value": a + b})  # Pre-compute addition for simplicity
+    circuit.set_perch_data("add_result", {"comp": a + b, "a": a, "b": b})  # Pre-compute addition for simplicity
     
     # Initialize power_result with both required values
-    # For proper initialization, set both value and matrix_c
     sum_ab_cubed = ((a + b) ** 3)  # Pre-compute the value for clarity
-    circuit.set_node_data("power_result", {
-        "value": sum_ab_cubed,  # Set value for forward operations
+    circuit.set_perch_data("power_result", {
+        "comp": sum_ab_cubed,  # Set comp for forward operations
+        "matrix_a": sum_ab_cubed, # Also set as matrix_a for the matrix multiplication
         "matrix_c": c           # Set matrix_c for forward operations
     })
     
-    # Also initialize transformed_matrix node
-    circuit.set_node_data("transformed_matrix", {"value": None})
+    # Also initialize transformed_matrix perch
+    circuit.set_perch_data("transformed_matrix", {"comp": None, "sim": None})
     
-    # Mark as initialized
-    circuit.is_initialized = True
+    # Check lifecycle flags
+    print("\nLIFECYCLE FLAGS:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    print(f"is_solved: {circuit.is_solved}")
+    print(f"is_simulated: {circuit.is_simulated}")
     
     # Debug information
     print("\nDEBUG INFO:")
-    print(f"Circuit is initialized: {circuit.is_initialized}")
-    print(f"Circuit is solvable: {circuit.is_solvable}")
-    print(f"Backward graph nodes: {list(circuit.backward_graph.nodes())}")
-    print(f"Backward graph edges: {list(circuit.backward_graph.edges())}")
-    
-    for node_name in circuit.backward_graph.nodes():
-        node = circuit.nodes[node_name]
-        print(f"Node {node_name} is initialized: {node.is_initialized()}")
-        for key in node.get_data_keys():
-            print(f"Node {node_name} {key}: {node.get_data(key) is not None}")
+    for perch_name in circuit.backward_graph.nodes():
+        perch = circuit.perches[perch_name]
+        print(f"Perch {perch_name} initialized keys: {perch.get_initialized_keys()}")
         
         # Check predecessors in backward graph
-        predecessors = list(circuit.backward_graph.predecessors(node_name))
-        print(f"Node {node_name} predecessors in backward graph: {predecessors}")
+        predecessors = list(circuit.backward_graph.predecessors(perch_name))
+        print(f"Perch {perch_name} predecessors in backward graph: {predecessors}")
         
         if not predecessors:
-            print(f"Node {node_name} is a terminal node in backward graph")
-            print(f"Node {node_name} all values initialized: {node.is_initialized()}")
+            print(f"Perch {perch_name} is a terminal perch in backward graph")
     
-    # Verify node initialization
-    print("\nVerifying node initialization...")
-    for node_name, node in circuit.nodes.items():
-        print(f"Node {node_name}: {node.is_initialized()}")
+    # 5. SOLUTION
+    print("\n5. SOLUTION")
     
     # Solve the circuit
     if circuit.is_solvable:
-        print("\nSolving circuit...")
-        results = circuit.solve()
+        print("Solving circuit...")
+        circuit.solve()
         
         # Print the results
         print("\nCircuit execution results:")
-        power_result = circuit.get_node_data("power_result", "value")
-        transformed_matrix = circuit.get_node_data("transformed_matrix", "value")
+        print(f"Lifecycle flags after solving:")
+        print(f"is_solved: {circuit.is_solved}")
+        print(f"is_simulated: {circuit.is_simulated}")
+        
+        power_result = circuit.get_perch_data("power_result", "comp")
+        transformed_matrix = circuit.get_perch_data("transformed_matrix", "sim")
         
         print(f"Add result: {a + b}")
         print(f"Power result shape: {power_result.shape}")

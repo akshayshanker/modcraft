@@ -1,8 +1,8 @@
 """
-CircuitCraft Example: Quick Circuit Creation
---------------------------------------------
-This example demonstrates CircuitCraft's high-level API for quick circuit
-creation and solution using the create_and_solve_circuit function.
+CircuitCraft 1.2.0 Example: Quick Circuit Creation
+============================================================
+This example demonstrates how to create and solve a simple circuit using
+CircuitCraft 1.2.0 terminology and features.
 """
 
 import numpy as np
@@ -12,95 +12,177 @@ import os
 # Try different import approaches to make the script runnable from various locations
 try:
     # When running from the project root or if package is installed
-    from circuitcraft import create_and_solve_circuit
+    from src.circuitcraft import CircuitBoard, Perch
 except ImportError:
     try:
         # When running from examples directory with src structure
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        from src.circuitcraft import create_and_solve_circuit
+        from src.circuitcraft import CircuitBoard, Perch
     except ImportError:
         raise ImportError(
             "Unable to import circuitcraft. Make sure you're either:\n"
             "1. Running from the project root directory\n"
             "2. Have installed the package with 'pip install -e .'\n"
-            "3. Have added the project root to PYTHONPATH"
+            "3. Have added the project root to your PYTHONPATH"
         )
 
 
-def square_operation(x):
-    """Square a vector - used for backward edge operation."""
-    return x**2  # Element-wise square
-
-
-def matrix_transform(matrix, vector):
-    """Transform matrix using vector - used for forward edge operation."""
-    # Create a transformation using the vector to modify the matrix
-    v_column = vector.reshape(-1, 1)  # Column vector
-    outer_product = v_column @ v_column.T  # Outer product matrix
-    return matrix + 0.1 * (matrix @ outer_product)  # Apply transformation
-
-
 def main():
-    """Run the quick circuit example."""
-    print("CircuitCraft Example: Quick Circuit Creation")
-    print("=" * 60)
+    print("CircuitCraft 1.2.0 Example: Quick Circuit Creation")
+    print("============================================================")
     
-    # Initial values
-    initial_policy = np.array([2, 3, 4])
-    initial_distribution = np.array([
-        [1, 0.1, 0.2],
-        [0.1, 2, 0.3],
-        [0.2, 0.3, 3]
-    ])
+    # Define a simple computational method for backward solving
+    def square(data):
+        """Square function - used for backward solving."""
+        comp = data.get("comp")
+        if comp is not None:
+            return {"comp": comp**2}
+        return {}
     
-    # Create and solve circuit in one step
-    circuit = create_and_solve_circuit(
-        name="QuickMathCircuit",
-        # Define nodes
-        nodes=[
-            {"id": "node_0", "data_types": {"policy": None, "distribution": None}},
-            {"id": "node_1", "data_types": {"policy": None, "distribution": None}},
-            {"id": "node_2", "data_types": {"distribution": None}}
-        ],
-        # Define edges with operations
-        edges=[
-            {"source": "node_1", "target": "node_0", "operation": square_operation, 
-             "source_key": "policy", "target_key": "policy", "edge_type": "backward"},
-            {"source": "node_0", "target": "node_1", "operation": matrix_transform,
-             "source_keys": ["distribution", "policy"], "target_key": "distribution", "edge_type": "forward"},
-            {"source": "node_1", "target": "node_2", "operation": matrix_transform,
-             "source_keys": ["distribution", "policy"], "target_key": "distribution", "edge_type": "forward"},
-        ],
-        # Initialize values
-        initial_values={
-            "node_0": {"distribution": initial_distribution},
-            "node_1": {"policy": initial_policy}
-        }
+    # Define a simple computational method for forward simulation
+    def add_values(data):
+        """Add sim and comp values - used for forward simulation."""
+        sim = data.get("sim")
+        comp = data.get("comp")
+        if sim is not None and comp is not None:
+            return {"sim": sim + comp}
+        return {}
+    
+    print("\nCreating a simple 2-perch circuit manually:")
+    
+    # Create the circuit
+    circuit = CircuitBoard(name="SimpleCircuit")
+    
+    # Add perches
+    circuit.add_perch(Perch("input", {"comp": None, "sim": None}))
+    circuit.add_perch(Perch("output", {"comp": None, "sim": None}))
+    
+    # Add movers
+    # Backward mover (for comp calculation)
+    circuit.add_mover(
+        source_name="output", 
+        target_name="input",
+        source_key="comp", 
+        target_key="comp",
+        edge_type="backward"
     )
     
-    # Check circuit state
-    print("\nCircuit State:")
-    print(f"Circuit name: {circuit.name}")
-    print(f"Is configured: {circuit.is_configured}")
-    print(f"Is initialized: {circuit.is_initialized}")
-    print(f"Is solved: {circuit.is_solved}")
+    # Forward mover (for sim propagation)
+    circuit.add_mover(
+        source_name="input", 
+        target_name="output",
+        source_keys=["comp", "sim"], 
+        target_key="sim",
+        edge_type="forward"
+    )
     
-    # Access results
-    policy = circuit.get_node_data("node_0", "policy")
-    mu_1 = circuit.get_node_data("node_1", "distribution")
-    mu_2 = circuit.get_node_data("node_2", "distribution")
+    # Print lifecycle flags
+    print("\nLIFECYCLE FLAGS AFTER MOVERS CREATION:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
     
-    print("\nResults:")
-    print(f"policy = {policy}")
-    print(f"mu_1 shape = {mu_1.shape}")
-    print(f"mu_2 shape = {mu_2.shape}")
+    # Create maps
+    square_map = {
+        "operation": "square",
+        "parameters": {}
+    }
     
-    print("\nThis example demonstrates how CircuitCraft's high-level API can create")
-    print("and solve a complete circuit in a single function call, while maintaining")
-    print("the same computational model where:")
-    print("- Nodes store data (policy functions, distributions)")
-    print("- Edges contain operations (backward solvers, forward transformations)")
-    print("- The solution follows a clear workflow of creation -> configuration -> initialization -> solution")
+    add_map = {
+        "operation": "add",
+        "parameters": {}
+    }
+    
+    # Set maps
+    circuit.set_mover_map("output", "input", "backward", square_map)
+    circuit.set_mover_map("input", "output", "forward", add_map)
+    
+    # Define comp factory
+    def comp_factory(data):
+        """Convert maps to computational methods."""
+        map_data = data.get("map", {})
+        operation = map_data.get("operation")
+        
+        if operation == "square":
+            return square
+        elif operation == "add":
+            return add_values
+        
+        # Default fallback
+        return lambda data: {}
+    
+    # Create comps from maps
+    circuit.create_comps_from_maps(comp_factory)
+    
+    # Finalize the model
+    circuit.finalize_model()
+    
+    print("\nLIFECYCLE FLAGS AFTER MODEL FINALIZATION:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    
+    # Initialize perch values
+    circuit.set_perch_data("input", {"comp": 3.0, "sim": 2.0})
+    
+    print("\nPERCH VALUES AFTER INITIALIZATION:")
+    print(f"input.comp = {circuit.get_perch_data('input', 'comp')}")
+    print(f"input.sim = {circuit.get_perch_data('input', 'sim')}")
+    print(f"output.comp = {circuit.get_perch_data('output', 'comp')}")
+    print(f"output.sim = {circuit.get_perch_data('output', 'sim')}")
+    
+    print("\nLIFECYCLE FLAGS AFTER INITIALIZATION:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    
+    # Solve the circuit
+    print("\nSolving the circuit...")
+    
+    # For backward solving, set output.comp value
+    circuit.set_perch_data("output", {"comp": 9.0})
+    
+    # Solve the circuit with automatic solving
+    circuit.solve()
+    
+    # Print the results
+    input_comp = circuit.get_perch_data("input", "comp")
+    output_comp = circuit.get_perch_data("output", "comp")
+    
+    input_sim = circuit.get_perch_data("input", "sim")
+    output_sim = circuit.get_perch_data("output", "sim")
+    
+    print("\nCircuit solved successfully!")
+    print("\nComp (backward) results:")
+    print(f"input.comp = {input_comp}")   # Initial value: 3.0
+    print(f"output.comp = {output_comp}") # Should be 3.0^2 = 9.0
+    
+    print("\nSim (forward) results:")
+    print(f"input.sim = {input_sim}")     # Initial value: 2.0
+    print(f"output.sim = {output_sim}")   # Should be 2.0 + 9.0 = 11.0
+    
+    # Print the lifecycle flags
+    print("\nCircuit board status after solution:")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    print(f"is_solved: {circuit.is_solved}")
+    print(f"is_simulated: {circuit.is_simulated}")
+    
+    print("\nKey CircuitCraft 1.2.0 Features:")
+    print("- Perch (formerly Node): Stores data like comp and sim values")
+    print("- CircuitBoard (formerly Graph): Organizes perches and movers")
+    print("- Mover (formerly Edge): Contains operations between perches")
+    print("- comp (formerly function): Represents policy/decision functions")
+    print("- sim (formerly distribution): Represents state distributions")
+    print("- Lifecycle flags: Track the state of the circuit (model, portable, solved, etc.)")
 
 
 if __name__ == "__main__":

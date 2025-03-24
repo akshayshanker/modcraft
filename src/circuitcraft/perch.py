@@ -1,41 +1,70 @@
 from typing import Any, Dict, List, Optional, Set, Union
 
 
-class Node:
+class Perch:
     """
-    Node in a CircuitCraft circuit.
+    Perch in a CircuitCraft circuit.
     
-    In CircuitCraft, nodes store data (policy functions, distributions, etc.)
-    rather than computational operations. This is the opposite of traditional
-    computational graphs where nodes typically represent operations.
+    In CircuitCraft, each perch has two primary attributes:
+    - comp: A callable object (formerly 'function', like a policy function)
+    - sim: A callable object (formerly 'distribution', like a probability distribution)
     
-    Each node can store multiple data items, accessible by keys.
+    Each perch can also store additional data items as needed.
     """
     
     def __init__(self, name: str, data_types: Optional[Dict[str, Any]] = None):
         """
-        Initialize a Node in the circuit.
+        Initialize a Perch in the circuit.
         
         Parameters
         ----------
         name : str
-            The unique identifier for the node within the circuit.
+            The unique identifier for the perch within the circuit.
         data_types : Dict[str, Any], optional
             Dictionary defining data slots with optional initial values.
-            Keys are data names, values are initial data values (can be None).
+            By convention, should include 'comp' and 'sim' keys.
         
         Examples
         --------
-        >>> node = Node("policy_node", {"policy": None, "distribution": None})
-        >>> node = Node("initial_node", {"policy": initial_policy, "distribution": initial_distribution})
+        >>> perch = Perch("policy_perch", {"comp": None, "sim": None})
+        >>> perch = Perch("initial_perch", {"comp": initial_policy, "sim": initial_distribution})
         """
         self.name = name
-        self.data = data_types or {}
+        self.data = data_types or {"comp": None, "sim": None}
+        
+        # Ensure the perch has comp and sim keys
+        if "comp" not in self.data:
+            self.data["comp"] = None
+        if "sim" not in self.data:
+            self.data["sim"] = None
+            
         self._initialized_keys = {k for k, v in self.data.items() if v is not None}
+    
+    @property
+    def comp(self) -> Any:
+        """Get the comp attribute of the perch (formerly 'function')."""
+        return self.data.get("comp")
+    
+    @comp.setter
+    def comp(self, value: Any) -> None:
+        """Set the comp attribute of the perch."""
+        self.data["comp"] = value
+        self._initialized_keys.add("comp")
+    
+    @property
+    def sim(self) -> Any:
+        """Get the sim attribute of the perch (formerly 'distribution')."""
+        return self.data.get("sim")
+    
+    @sim.setter
+    def sim(self, value: Any) -> None:
+        """Set the sim attribute of the perch."""
+        self.data["sim"] = value
+        self._initialized_keys.add("sim")
     
     def get_data(self, key: str) -> Any:
         """
-        Get data stored in the node by key.
+        Get data stored in the perch by key.
         
         Parameters
         ----------
@@ -50,15 +79,15 @@ class Node:
         Raises
         ------
         KeyError
-            If the key doesn't exist in this node.
+            If the key doesn't exist in this perch.
         """
         if key not in self.data:
-            raise KeyError(f"Key '{key}' not found in node '{self.name}'")
+            raise KeyError(f"Key '{key}' not found in perch '{self.name}'")
         return self.data[key]
     
     def set_data(self, key: str, value: Any) -> None:
         """
-        Set data in the node by key.
+        Set data in the perch by key.
         
         Parameters
         ----------
@@ -70,16 +99,16 @@ class Node:
         Raises
         ------
         KeyError
-            If the key doesn't exist in this node.
+            If the key doesn't exist in this perch.
         """
         if key not in self.data:
-            raise KeyError(f"Key '{key}' not found in node '{self.name}'")
+            raise KeyError(f"Key '{key}' not found in perch '{self.name}'")
         self.data[key] = value
         self._initialized_keys.add(key)
     
     def add_data_key(self, key: str, initial_value: Any = None) -> None:
         """
-        Add a new data key to the node.
+        Add a new data key to the perch.
         
         Parameters
         ----------
@@ -89,7 +118,7 @@ class Node:
             Initial value for the data slot, defaults to None.
         """
         if key in self.data:
-            raise ValueError(f"Key '{key}' already exists in node '{self.name}'")
+            raise ValueError(f"Key '{key}' already exists in perch '{self.name}'")
         self.data[key] = initial_value
         if initial_value is not None:
             self._initialized_keys.add(key)
@@ -117,7 +146,7 @@ class Node:
     
     def get_data_keys(self) -> Set[str]:
         """
-        Get all data keys defined in this node.
+        Get all data keys defined in this perch.
         
         Returns
         -------
@@ -157,6 +186,6 @@ class Node:
                 self._initialized_keys.discard(key)
                 
     def __str__(self) -> str:
-        """String representation of the node."""
+        """String representation of the perch."""
         initialized = ", ".join(sorted(self._initialized_keys))
-        return f"Node({self.name}, initialized=[{initialized}])"
+        return f"Perch({self.name}, initialized=[{initialized}])" 

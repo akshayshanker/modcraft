@@ -2,15 +2,16 @@
 CircuitCraft Example: Quick Workflow with High-Level API
 ------------------------------------------------------
 This example demonstrates the use of CircuitCraft's high-level API
-to create and solve a circuit following the 4-step workflow:
+to create and solve a circuit following the workflow:
 
-1. Circuit Creation: Create the graph structure
-2. Configuration: Assign operations to edges
-3. Initialization: Provide initial values
-4. Solution: Execute operations
+1. Circuit Creation: Create the circuit board structure with perches and movers
+2. Model Finalization: Finalize the model once all components are added
+3. Portability Check: Make the circuit portable for serialization
+4. Initialization: Provide initial values
+5. Solution: Execute operations
 
 The example shows how to use the `create_and_solve_circuit` function, 
-which handles all four steps in one convenient call.
+which handles all workflow steps in one convenient call.
 """
 
 import numpy as np
@@ -35,83 +36,95 @@ except ImportError:
         )
 
 def main():
-    print("CircuitCraft Quick Workflow Example")
+    print("CircuitCraft 1.2.0 Quick Workflow Example")
     print("----------------------------------")
     
     # Define operations (simple functions)
-    def square(x):
-        """Square the input value (backward operation)"""
-        return x**2
+    def square(data):
+        """Square the comp value (backward operation)"""
+        comp_value = data.get("comp")
+        if comp_value is not None:
+            return {"comp": comp_value**2}
+        return {}
     
-    def add_ten(x):
-        """Add 10 to the input (forward operation)"""
-        return x + 10
+    def add_ten(data):
+        """Add 10 to the sim value (forward operation)"""
+        sim_value = data.get("sim")
+        if sim_value is not None:
+            return {"sim": sim_value + 10}
+        return {}
     
     # Create and solve a circuit in one high-level call
-    # This handles all four workflow steps internally
+    # This handles all workflow steps internally
     circuit = create_and_solve_circuit(
         name="QuickCircuit",
         
-        # Step 1: Circuit Creation - Define nodes
+        # Circuit Creation - Define perches (formerly nodes)
         nodes=[
-            {"id": "A", "data_types": {"value": None}},
-            {"id": "B", "data_types": {"value": None}},
-            {"id": "C", "data_types": {"value": None}}
+            {"id": "A", "data_types": {"comp": None, "sim": None}},
+            {"id": "B", "data_types": {"comp": None, "sim": None}},
+            {"id": "C", "data_types": {"comp": None, "sim": None}}
         ],
         
-        # Step 2: Configuration - Define edges with operations
+        # Configuration - Define movers (formerly edges) with operations
         edges=[
-            # Backward edge: B → A
+            # Backward mover: B → A
             {"source": "B", "target": "A", 
              "operation": square, 
-             "source_key": "value", "target_key": "value",
+             "source_key": "comp", "target_key": "comp",
              "edge_type": "backward"},
             
-            # Forward edge: A → B
+            # Forward mover: A → B
             {"source": "A", "target": "B", 
              "operation": add_ten,
-             "source_key": "value", "target_key": "value", 
+             "source_key": "sim", "target_key": "sim", 
              "edge_type": "forward"},
             
-            # Forward edge: B → C
+            # Forward mover: B → C
             {"source": "B", "target": "C", 
              "operation": add_ten,
-             "source_key": "value", "target_key": "value",
+             "source_key": "sim", "target_key": "sim",
              "edge_type": "forward"}
         ],
         
-        # Step 3: Initialization - Set initial values
+        # Initialization - Set initial values
         initial_values={
-            "A": {"value": None},  # Initialize node A with None
-            "B": {"value": 5},     # Initial value at node B
-            "C": {"value": None}   # Initialize node C with None
+            "A": {"comp": None, "sim": None},  # Initialize perch A with None
+            "B": {"comp": 5, "sim": None},     # Initial comp value at perch B
+            "C": {"comp": None, "sim": None}   # Initialize perch C with None
         }
     )
     
-    # Verify circuit is solved
-    print(f"\nCircuit solution status:")
-    print(f"- Configured: {circuit.is_configured}")
-    print(f"- Initialized: {circuit.is_initialized}")
-    print(f"- Solved: {circuit.is_solved}")
+    # Verify circuit lifecycle flags
+    print(f"\nCircuit board lifecycle status:")
+    print(f"- has_model: {circuit.has_model}")
+    print(f"- is_portable: {circuit.is_portable}")
+    print(f"- is_solvable: {circuit.is_solvable}")
+    print(f"- is_solved: {circuit.is_solved}")
+    print(f"- is_simulated: {circuit.is_simulated}")
     
-    # Access results
-    a_value = circuit.get_node_data("A", "value")
-    b_value = circuit.get_node_data("B", "value")
-    c_value = circuit.get_node_data("C", "value")
+    # Access results (using get_perch_data instead of get_node_data)
+    a_comp = circuit.get_perch_data("A", "comp")
+    a_sim = circuit.get_perch_data("A", "sim")
+    b_comp = circuit.get_perch_data("B", "comp")
+    b_sim = circuit.get_perch_data("B", "sim")
+    c_comp = circuit.get_perch_data("C", "comp")
+    c_sim = circuit.get_perch_data("C", "sim")
     
     print("\nRESULTS:")
-    print(f"Node A value: {a_value}")   # 5² = 25
-    print(f"Node B value: {b_value}")   # 25 + 10 = 35
-    print(f"Node C value: {c_value}")   # 35 + 10 = 45
+    print(f"Perch A - comp: {a_comp}, sim: {a_sim}")   # comp: 5² = 25, sim: None initially
+    print(f"Perch B - comp: {b_comp}, sim: {b_sim}")   # comp: 5, sim: A's sim + 10 = None + 10
+    print(f"Perch C - comp: {c_comp}, sim: {c_sim}")   # comp: None, sim: B's sim + 10
     
     print("\nHow it works internally:")
-    print("1. Circuit Creation: Creates nodes A, B, C and connects them")
-    print("2. Configuration: Assigns square and add_ten operations to edges")
-    print("3. Initialization: Sets initial value for node B (value=5)")
-    print("4. Solution: Executes operations in order:")
-    print("   - Backward: B (5) → A, applying square: 5² = 25")
-    print("   - Forward: A (25) → B, applying add_ten: 25 + 10 = 35")
-    print("   - Forward: B (35) → C, applying add_ten: 35 + 10 = 45")
+    print("1. Circuit Creation: Creates perches A, B, C and connects them with movers")
+    print("2. Model Finalization: Finalizes the circuit board model")
+    print("3. Portability: Makes the circuit portable for serialization")
+    print("4. Initialization: Sets initial value for perch B (comp=5)")
+    print("5. Solution: Executes operations in order:")
+    print("   - Backward: B (comp=5) → A, applying square: 5² = 25")
+    print("   - Forward: A (sim=None) → B, applying add_ten (if sim were not None)")
+    print("   - Forward: B (sim=None) → C, applying add_ten (if sim were not None)")
 
 if __name__ == "__main__":
     main() 

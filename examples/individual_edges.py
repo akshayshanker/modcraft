@@ -1,8 +1,8 @@
 """
-CircuitCraft Example: Individual Edge Execution
+CircuitCraft Example: Individual Mover Execution
 ----------------------------------------------
-This example demonstrates how to execute individual edges in a circuit
-and work directly with functions as operations.
+This example demonstrates how to execute individual movers in a circuit
+and work directly with the comp and sim attributes of perches.
 """
 
 import numpy as np
@@ -12,14 +12,14 @@ import os
 # Try different import approaches to make the script runnable from various locations
 try:
     # When running from the project root or if package is installed
-    from circuitcraft.graph import Graph
-    from circuitcraft.node import Node
+    from circuitcraft import CircuitBoard
+    from circuitcraft import Perch
 except ImportError:
     try:
         # When running from examples directory with src structure
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        from src.circuitcraft.graph import Graph
-        from src.circuitcraft.node import Node
+        from src.circuitcraft import CircuitBoard
+        from src.circuitcraft import Perch
     except ImportError:
         raise ImportError(
             "Unable to import circuitcraft. Make sure you're either:\n"
@@ -30,47 +30,137 @@ except ImportError:
 
 
 def matrix_transform(matrix, vector):
-    """Transform a matrix using a vector through rank-1 updates."""
-    v_column = vector.reshape(-1, 1)  # Column vector
-    outer_product = v_column @ v_column.T  # Outer product
-    return matrix + 0.1 * (matrix @ outer_product)  # Apply transformation
+    """Transform a matrix using a vector outer product"""
+    v_column = vector.reshape(-1, 1)
+    outer_product = v_column @ v_column.T
+    return matrix + 0.1 * (matrix @ outer_product)
 
 
 def main():
-    """Demonstrate individual edge execution in a circuit."""
-    print("CircuitCraft Example: Individual Edge Execution")
-    print("=" * 60)
+    print("CircuitCraft 1.2.0 Individual Mover Execution Example")
+    print("---------------------------------------------------")
     
-    # Create a circuit
-    circuit = Graph(name="IndividualOperations")
-    
-    # Add nodes
-    circuit.add_node(Node("node_0", {"vector": None, "matrix": None}))
-    circuit.add_node(Node("node_1", {"vector": None, "matrix": None}))
-    
-    # Following the updated 4-step workflow
-    
-    # 1. Circuit Creation - Create the structure without operations
-    # Only create a forward edge since that seems to work correctly
-    circuit.add_edge("node_0", "node_1", edge_type="forward")
-    
+    #--------------------------------------------------
+    # 1. CIRCUIT CREATION
+    #--------------------------------------------------
     print("\n1. CIRCUIT CREATION")
-    print("Created circuit with 2 nodes and 1 edge (no operations yet)")
     
-    # 2. Configuration - Assign operations to edges
-    # Configure the forward edge operation
-    circuit.set_edge_operation("node_0", "node_1", matrix_transform,
-                              source_keys=["matrix", "vector"], target_key="matrix",
-                              edge_type="forward")
+    # Create circuit
+    circuit = CircuitBoard(name="IndividualMovers")
+    print(f"Circuit board created: {circuit.name}")
     
-    # Configure the circuit
-    circuit.configure()
+    # Add perches
+    circuit.add_perch(Perch("perch_0", {"comp": None, "sim": None, "vector": None, "matrix": None}))
+    circuit.add_perch(Perch("perch_1", {"comp": None, "sim": None, "vector": None, "matrix": None}))
+    circuit.add_perch(Perch("perch_2", {"comp": None, "sim": None, "vector": None, "matrix": None}))
+    print(f"Added 3 perches to the circuit board")
     
-    print("\n2. CONFIGURATION")
-    print(f"Circuit configured: {circuit.is_configured}")
+    # Add movers (without maps initially)
+    circuit.add_mover(
+        source_name="perch_1", 
+        target_name="perch_0",
+        source_key="vector", 
+        target_key="vector",
+        edge_type="backward"
+    )
     
-    # 3. Initialization - Set initial values
-    # Create initial data
+    circuit.add_mover(
+        source_name="perch_0", 
+        target_name="perch_1",
+        source_keys=["matrix", "vector"], 
+        target_key="matrix",
+        edge_type="forward"
+    )
+    
+    circuit.add_mover(
+        source_name="perch_1", 
+        target_name="perch_2",
+        source_keys=["matrix", "vector"], 
+        target_key="matrix",
+        edge_type="forward"
+    )
+    
+    print(f"Added 3 movers connecting the perches")
+    
+    #--------------------------------------------------
+    # 2. MODEL FINALIZATION
+    #--------------------------------------------------
+    print("\n2. MODEL FINALIZATION")
+    
+    # Define maps for the movers
+    backward_map = {
+        "operation": "square",
+        "parameters": {}
+    }
+    
+    forward_map = {
+        "operation": "transform",
+        "parameters": {
+            "scale_factor": 0.1
+        }
+    }
+    
+    # Set maps for movers
+    circuit.set_mover_map("perch_1", "perch_0", "backward", backward_map)
+    circuit.set_mover_map("perch_0", "perch_1", "forward", forward_map)
+    circuit.set_mover_map("perch_1", "perch_2", "forward", forward_map)
+    
+    # Finalize the model
+    circuit.finalize_model()
+    print(f"Circuit model finalized: has_model={circuit.has_model}")
+    
+    #--------------------------------------------------
+    # 3. PORTABILITY
+    #--------------------------------------------------
+    print("\n3. PORTABILITY")
+    
+    # Define a comp factory
+    def comp_factory(data):
+        """Create a comp function from a map"""
+        map_data = data.get("map", {})
+        parameters = data.get("parameters", {})
+        
+        operation = map_data.get("operation")
+        
+        if operation == "square":
+            def square_comp(data):
+                """Square each element in a vector"""
+                vector = data.get("vector")
+                if vector is not None:
+                    return {"vector": vector**2}
+                return {}
+            return square_comp
+            
+        elif operation == "transform":
+            def transform_comp(data):
+                """Transform a matrix using a vector"""
+                matrix = data.get("matrix")
+                vector = data.get("vector")
+                
+                if matrix is not None and vector is not None:
+                    # Create a column vector
+                    v_column = vector.reshape(-1, 1)
+                    # Create an outer product (rank-1 update)
+                    outer_product = v_column @ v_column.T
+                    # Apply transformation: scale original matrix + rank-1 update
+                    result_matrix = matrix + 0.1 * (matrix @ outer_product)
+                    return {"matrix": result_matrix}
+                return {}
+            return transform_comp
+            
+        # Default case
+        return lambda data: {}
+    
+    # Make the circuit portable
+    circuit.make_portable(comp_factory)
+    print(f"Circuit is portable: {circuit.is_portable}")
+    
+    #--------------------------------------------------
+    # 4. INITIALIZATION
+    #--------------------------------------------------
+    print("\n4. INITIALIZATION")
+    
+    # Create initial values
     initial_vector = np.array([2.0, 3.0, 4.0])
     initial_matrix = np.array([
         [1.0, 0.1, 0.2],
@@ -78,57 +168,91 @@ def main():
         [0.2, 0.3, 3.0]
     ])
     
-    # Initialize nodes with data
-    circuit.set_node_data("node_1", {"vector": initial_vector})
-    circuit.set_node_data("node_0", {"matrix": initial_matrix, "vector": initial_vector})
+    # Set initial values
+    circuit.set_perch_data("perch_1", {"vector": initial_vector})
+    circuit.set_perch_data("perch_0", {"matrix": initial_matrix})
     
-    # Mark as initialized
-    circuit.is_initialized = True
+    # Print lifecycle flags
+    print("\nLIFECYCLE FLAGS:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"movers_backward_exist: {circuit.movers_backward_exist}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    print(f"is_solved: {circuit.is_solved}")
+    print(f"is_simulated: {circuit.is_simulated}")
     
-    print("\n3. INITIALIZATION")
-    print(f"Circuit initialized: {circuit.is_initialized}")
-    print(f"Circuit is solvable: {circuit.is_solvable}")
+    #--------------------------------------------------
+    # 5. INDIVIDUAL MOVER EXECUTION
+    #--------------------------------------------------
+    print("\n5. INDIVIDUAL MOVER EXECUTION")
     
-    # For debugging, print the graph structures
-    print("\nForward graph edges:")
-    for edge in circuit.forward_graph.edges():
-        print(f"  {edge[0]} → {edge[1]}")
+    # Execute the backward mover from perch_1 to perch_0
+    print("\nExecuting backward mover: perch_1 → perch_0")
+    result = circuit.execute_mover("perch_1", "perch_0", edge_type="backward")
+    print(f"Result: {result}")
     
-    # 4. Individual Edge Execution
-    print("\n4. INDIVIDUAL EDGE EXECUTION")
+    # Check perch_0 value after backward mover execution
+    perch0_vector = circuit.get_perch_data("perch_0", "vector")
+    print(f"perch_0 vector after backward mover: {perch0_vector}")
     
-    # Execute forward edge: node_0 → node_1
-    print("\nExecuting forward edge: node_0 → node_1")
-    result_forward = circuit.execute_edge("node_0", "node_1", "forward")
+    # Execute the forward mover from perch_0 to perch_1
+    print("\nExecuting forward mover: perch_0 → perch_1")
+    result = circuit.execute_mover("perch_0", "perch_1", edge_type="forward")
+    print(f"Result: {result}")
     
-    print(f"Matrix shape in node_0: {initial_matrix.shape}")
-    print(f"Result matrix shape in node_1: {result_forward.shape}")
-    print(f"First element of original matrix: {initial_matrix[0,0]}")
-    print(f"First element of transformed matrix: {result_forward[0,0]}")
+    # Check perch_1 matrix after forward mover execution
+    perch1_matrix = circuit.get_perch_data("perch_1", "matrix")
+    print(f"perch_1 matrix after forward mover:")
+    print(perch1_matrix)
     
-    print("\n5. VERIFY ALL NODES CONTAIN RESULTS")
-    # Get current state of all nodes
-    node0_vector = circuit.get_node_data("node_0", "vector")
-    node0_matrix = circuit.get_node_data("node_0", "matrix")
-    node1_vector = circuit.get_node_data("node_1", "vector")
-    node1_matrix = circuit.get_node_data("node_1", "matrix")
+    # Execute the forward mover from perch_1 to perch_2
+    print("\nExecuting forward mover: perch_1 → perch_2")
+    result = circuit.execute_mover("perch_1", "perch_2", edge_type="forward")
+    print(f"Result: {result}")
     
-    print(f"node_0 vector shape: {node0_vector.shape}")
-    print(f"node_0 matrix shape: {node0_matrix.shape}")
-    print(f"node_1 vector shape: {node1_vector.shape}")
-    print(f"node_1 matrix shape: {node1_matrix.shape}")
+    # Check perch_2 matrix after forward mover execution
+    perch2_matrix = circuit.get_perch_data("perch_2", "matrix")
+    print(f"perch_2 matrix after forward mover:")
+    print(perch2_matrix)
     
-    print("\nCOMPARISON WITH FULL SOLVE")
-    print("Individual edge execution allows fine-grained control over")
-    print("which operations to run and when to run them.")
-    print("The same result could be achieved with:")
-    print("1. circuit.solve_forward() for forward edges")
-    print("\nThis is useful for:")
-    print("- Debugging specific operations")
-    print("- Stepwise model solution")
-    print("- Custom execution sequences")
-    print("- Partial graph updates")
-
+    # Check lifecycle flags after individual mover execution
+    print("\nLIFECYCLE FLAGS AFTER INDIVIDUAL MOVER EXECUTION:")
+    print(f"is_solved: {circuit.is_solved}")
+    print(f"is_simulated: {circuit.is_simulated}")
+    
+    #--------------------------------------------------
+    # 6. FULL SOLUTION
+    #--------------------------------------------------
+    print("\n6. FULL SOLUTION")
+    
+    # Reset perches to initial state for comparison
+    circuit.set_perch_data("perch_0", {"vector": None, "matrix": initial_matrix})
+    circuit.set_perch_data("perch_1", {"vector": initial_vector, "matrix": None})
+    circuit.set_perch_data("perch_2", {"vector": None, "matrix": None})
+    
+    # Solve the circuit in one step
+    circuit.solve()
+    print(f"Circuit solved: {circuit.is_solved} and simulated: {circuit.is_simulated}")
+    
+    # Get the results
+    perch0_vector = circuit.get_perch_data("perch_0", "vector")
+    perch1_matrix = circuit.get_perch_data("perch_1", "matrix")
+    perch2_matrix = circuit.get_perch_data("perch_2", "matrix")
+    
+    # Print the results
+    print("\nRESULTS AFTER FULL SOLUTION:")
+    print(f"perch_0 vector: {perch0_vector}")
+    print(f"perch_1 matrix shape: {perch1_matrix.shape if perch1_matrix is not None else 'None'}")
+    print(f"perch_2 matrix shape: {perch2_matrix.shape if perch2_matrix is not None else 'None'}")
+    
+    print("\nLifecycle flags at end of execution:")
+    print(f"has_empty_perches: {circuit.has_empty_perches}")
+    print(f"has_model: {circuit.has_model}")
+    print(f"is_portable: {circuit.is_portable}")
+    print(f"is_solvable: {circuit.is_solvable}")
+    print(f"is_solved: {circuit.is_solved}")
+    print(f"is_simulated: {circuit.is_simulated}")
 
 if __name__ == "__main__":
     main()
