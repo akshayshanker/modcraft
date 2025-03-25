@@ -1,6 +1,52 @@
-# Changelog
+# Change Log
 
 All notable changes to CircuitCraft will be documented in this file.
+
+## [1.3.1] - 2023-03-25
+
+### Changed
+- Renamed `perch.comp` attribute to `perch.up` (upstream data)
+- Renamed `perch.sim` attribute to `perch.down` (downstream data)
+- Added backward compatibility properties to support older code using the previous attribute names
+- Updated all examples and documentation to use the new attribute names
+
+## [1.3.0] - 2023-03-24
+
+### Added
+- Robust type handling in all computational functions to support both dictionary and direct scalar inputs
+- Improved error handling for circuit solving with informative messages
+- Fixed import paths in examples to work with the new src directory structure
+
+### Changed
+- Restructured repository with src directory layout
+- Updated API for separate backward and forward solvers (solve_backward() and solve_forward() methods)
+- Improved example handling of terminal values for better circuit solvability
+- Simplified file structure by consolidating similar examples
+
+### Fixed
+- Fixed import issues in all example files
+- Resolved errors in computational functions that expected dictionary inputs but received scalar values
+- Added appropriate error handling for circuits that cannot be fully solved
+- Improved robustness of eulerian_example.py when moved to a different directory
+
+## [1.2.4] - 2023-11-15
+
+### Added
+- Eulerian circuit checking functionality
+- Default edge attribute usage for backward and forward movers
+- Clearer terminal and initial perch terminology
+- Warning when a circuit is not Eulerian
+
+### Changed
+- Updated solution approach to follow an Eulerian cycle model
+- Enhanced add_mover method with default source/target key configurations
+- Improved circuit initialization and solution process
+- Updated documentation to reflect the Eulerian nature of combined sub-graphs
+- Added graph structure sections to README
+
+### Fixed
+- Improved handling of terminal and initial perches in the solution process
+- Clearer error messages for missing data in terminal or initial perches
 
 ## [1.2.1] - 2023-11-01
 

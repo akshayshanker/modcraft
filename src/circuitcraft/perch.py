@@ -6,8 +6,8 @@ class Perch:
     Perch in a CircuitCraft circuit.
     
     In CircuitCraft, each perch has two primary attributes:
-    - comp: A callable object (formerly 'function', like a policy function)
-    - sim: A callable object (formerly 'distribution', like a probability distribution)
+    - up: A callable object (formerly 'function', like a policy function)
+    - down: A callable object (formerly 'distribution', like a probability distribution)
     
     Each perch can also store additional data items as needed.
     """
@@ -22,45 +22,66 @@ class Perch:
             The unique identifier for the perch within the circuit.
         data_types : Dict[str, Any], optional
             Dictionary defining data slots with optional initial values.
-            By convention, should include 'comp' and 'sim' keys.
+            By convention, should include 'up' and 'down' keys.
         
         Examples
         --------
-        >>> perch = Perch("policy_perch", {"comp": None, "sim": None})
-        >>> perch = Perch("initial_perch", {"comp": initial_policy, "sim": initial_distribution})
+        >>> perch = Perch("policy_perch", {"up": None, "down": None})
+        >>> perch = Perch("initial_perch", {"up": initial_policy, "down": initial_distribution})
         """
         self.name = name
-        self.data = data_types or {"comp": None, "sim": None}
+        self.data = data_types or {"up": None, "down": None}
         
-        # Ensure the perch has comp and sim keys
-        if "comp" not in self.data:
-            self.data["comp"] = None
-        if "sim" not in self.data:
-            self.data["sim"] = None
+        # Ensure the perch has up and down keys
+        if "up" not in self.data:
+            self.data["up"] = None
+        if "down" not in self.data:
+            self.data["down"] = None
             
         self._initialized_keys = {k for k, v in self.data.items() if v is not None}
     
     @property
+    def up(self) -> Any:
+        """Get the up attribute of the perch (formerly 'comp')."""
+        return self.data.get("up")
+    
+    @up.setter
+    def up(self, value: Any) -> None:
+        """Set the up attribute of the perch."""
+        self.data["up"] = value
+        self._initialized_keys.add("up")
+    
+    @property
+    def down(self) -> Any:
+        """Get the down attribute of the perch (formerly 'sim')."""
+        return self.data.get("down")
+    
+    @down.setter
+    def down(self, value: Any) -> None:
+        """Set the down attribute of the perch."""
+        self.data["down"] = value
+        self._initialized_keys.add("down")
+    
+    # For backward compatibility
+    @property
     def comp(self) -> Any:
-        """Get the comp attribute of the perch (formerly 'function')."""
-        return self.data.get("comp")
+        """Get the up attribute of the perch (backward compatibility with 'comp')."""
+        return self.up
     
     @comp.setter
     def comp(self, value: Any) -> None:
-        """Set the comp attribute of the perch."""
-        self.data["comp"] = value
-        self._initialized_keys.add("comp")
+        """Set the up attribute of the perch (backward compatibility with 'comp')."""
+        self.up = value
     
     @property
     def sim(self) -> Any:
-        """Get the sim attribute of the perch (formerly 'distribution')."""
-        return self.data.get("sim")
+        """Get the down attribute of the perch (backward compatibility with 'sim')."""
+        return self.down
     
     @sim.setter
     def sim(self, value: Any) -> None:
-        """Set the sim attribute of the perch."""
-        self.data["sim"] = value
-        self._initialized_keys.add("sim")
+        """Set the down attribute of the perch (backward compatibility with 'sim')."""
+        self.down = value
     
     def get_data(self, key: str) -> Any:
         """

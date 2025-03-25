@@ -2,6 +2,7 @@ import pickle
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Callable
 
 import networkx as nx
+import numpy as np
 
 from .perch import Perch
 from .mover import Mover
@@ -92,8 +93,7 @@ class CircuitBoard:
         """
         Add a mover to the circuit board.
         
-        Part of the Circuit Creation step. This creates the graph structure and optionally
-        adds a map (mathematical representation) to the mover.
+        Part of the Circuit Creation step.
         
         Parameters
         ----------
@@ -104,45 +104,61 @@ class CircuitBoard:
         map_data : Dict[str, Any], optional
             Mathematical representation of the operation.
         parameters : Dict[str, Any], optional
-            Problem-specific parameters for this mover.
+            Problem-specific values.
         numerical_hyperparameters : Dict[str, Any], optional
-            Numerical hyperparameters for this mover's computational method.
+            Tuning values for the computational method.
         source_key : str, optional
-            Single source data key if only one source key is needed.
+            DEPRECATED: Use source_keys instead.
+            Key from source perch to use in the operation.
         source_keys : List[str], optional
-            List of source data keys if multiple source keys are needed.
+            Keys from source perch to use in the operation.
+            Default is ["comp"] for backward movers and ["comp", "sim"] for forward movers.
         target_key : str, optional
-            Target data key where the result will be stored.
+            Key in target perch where the result will be stored.
+            Default is "comp" for backward movers and "sim" for forward movers.
         edge_type : str, optional
-            Type of mover: "forward" or "backward", default is "forward".
-            Forward movers: source → target (push-forward operations)
-            Backward movers: target → source (backward solving operations)
+            Type of mover: "forward" or "backward".
+            Default is "forward".
             
         Raises
         ------
         ValueError
-            If source_key and source_keys are both provided or both None,
-            or if the perches don't exist.
+            If either perch doesn't exist.
         """
-        # Validate perches exist
         if source_name not in self.perches:
             raise ValueError(f"Source perch '{source_name}' doesn't exist")
         if target_name not in self.perches:
             raise ValueError(f"Target perch '{target_name}' doesn't exist")
         
-        # Validate source key(s)
-        if (source_key is None and source_keys is None):
-            source_keys = []  # No source keys specified, will be set during configuration
-        elif (source_key is not None and source_keys is not None):
-            raise ValueError("Provide either source_key or source_keys, but not both")
+        # Get the appropriate graph
+        graph = self._get_graph(edge_type)
         
-        # Convert single source_key to list for consistent handling
+        # Handle deprecated source_key parameter
         if source_key is not None:
+            if source_keys is not None:
+                raise ValueError("Cannot provide both source_key and source_keys. Use source_keys only.")
             source_keys = [source_key]
-        
-        # Create the mover
+            
+        # Set default source_keys and target_key if not provided
+        if source_keys is None:
+            if edge_type == "backward":
+                # For backward movers: Source = comp of the preceding perch
+                source_keys = ["comp"]
+            else:  # forward
+                # For forward movers: Source = sim from the preceding perch
+                source_keys = ["sim"]
+            
+        if target_key is None:
+            if edge_type == "backward":
+                # For backward movers: Target = comp of the succeeding perch
+                target_key = "comp"
+            else:  # forward
+                # For forward movers: Target = sim of the succeeding perch
+                target_key = "sim"
+                
+        # Create and add the mover
         mover = Mover(
-            source_name=source_name, 
+            source_name=source_name,
             target_name=target_name,
             edge_type=edge_type,
             map_data=map_data,
@@ -152,16 +168,15 @@ class CircuitBoard:
             target_key=target_key
         )
         
-        # Add mover to the specified direction
-        if edge_type == "forward":
-            # Add to forward graph
-            self.forward_graph.add_edge(source_name, target_name, mover=mover)
-        elif edge_type == "backward":
-            # Add to backward graph and set flag
-            self.backward_graph.add_edge(source_name, target_name, mover=mover)
+        # Add the edge with the mover object as an attribute
+        graph.add_edge(source_name, target_name, mover=mover)
+        
+        # Set flag for backward movers
+        if edge_type == "backward":
             self.movers_backward_exist = True
-        else:
-            raise ValueError(f"Unrecognized edge_type: {edge_type}")
+            
+        # Reset the model flag since we've modified the graph
+        self.has_model = False
     
     def set_mover_map(self, source_name: str, target_name: str, edge_type: str, map_data: Any) -> None:
         """
@@ -296,19 +311,21 @@ class CircuitBoard:
         self.has_model = True
         self._check_solvability()
     
-    def _check_solvability(self) -> None:
+    def _check_solvability(self) -> bool:
         """
         Check if the circuit has enough data to be solved.
         Updates the is_solvable flag if appropriate.
+        
+        For backward solving: At least one perch must have a comp value.
+        For forward simulation: At least one perch must have a sim value.
         """
         if not self.has_model:
             return False
             
-        # Check if we have terminal perches with comp for backward solve
+        # Check if we have any perches with comp for backward solve
         if self.movers_backward_exist:
             # Need at least one perch with comp initialized for backward solving
-            terminal_perches = self._get_terminal_perches("backward")
-            if not any(self.perches[p].comp is not None for p in terminal_perches):
+            if not any(perch.comp is not None for perch in self.perches.values()):
                 return False
                 
         # Check if we have initial perches with sim for forward simulation
@@ -371,7 +388,7 @@ class CircuitBoard:
         
         self.is_portable = True
     
-    def execute_mover(self, source_name: str, target_name: str, edge_type: str = "forward") -> Dict[str, Any]:
+    def execute_mover(self, source_name: str, target_name: str, edge_type: str = "forward") -> Any:
         """
         Execute a single mover in the circuit.
         
@@ -386,7 +403,7 @@ class CircuitBoard:
             
         Returns
         -------
-        Dict[str, Any]
+        Any
             Result from executing the mover.
             
         Raises
@@ -407,154 +424,384 @@ class CircuitBoard:
         if not mover.has_comp:
             raise ValueError(f"{edge_type} mover from '{source_name}' to '{target_name}' has no comp method")
         
-        # Prepare input data based on source keys
+        # Extract data from source perch based on source_keys
         input_data = {}
-        if mover.source_keys:
-            for key in mover.source_keys:
-                input_data[key] = source_perch.get_data(key)
-        else:
-            # If no source keys specified, use all available data
-            input_data = {"comp": source_perch.comp, "sim": source_perch.sim}
-        
-        # Execute the mover
+        for key in mover.source_keys:
+            input_data[key] = source_perch.get_data(key)
+            
+        # If there's only one source key, pass the value directly instead of a dictionary
+        if len(mover.source_keys) == 1:
+            input_data = input_data[mover.source_keys[0]]
+            
+        # Execute the mover's comp function
         result = mover.execute(input_data)
         
-        # Update target perch if we have a target key
-        if mover.target_key and result:
-            if mover.target_key in result:
-                target_perch.set_data(mover.target_key, result[mover.target_key])
+        # Apply the result to the target perch
+        if result is None:
+            # Nothing to update if result is None
+            pass
+        elif isinstance(result, dict):
+            # If result is a dictionary, update the target perch with the values
+            for key, value in result.items():
+                if key in target_perch.get_data_keys():
+                    target_perch.set_data(key, value)
         else:
-            # Update comp and sim if present in result
-            if "comp" in result:
-                target_perch.comp = result["comp"]
-            if "sim" in result:
-                target_perch.sim = result["sim"]
-        
+            # If result is not a dictionary, update the target_key directly
+            if mover.target_key:
+                target_perch.set_data(mover.target_key, result)
+                
         return result
     
-    def solve_backward(self) -> None:
+    def get_movers_dict(self, mover_type=None):
+        """
+        Get a dictionary mapping from source perch to list of target perches
+        with associated movers.
+        
+        Parameters
+        ----------
+        mover_type : str, optional
+            If provided, only include movers of this type (e.g., 'backward', 'forward')
+            
+        Returns
+        -------
+        dict
+            Dictionary with source perch names as keys and lists of target perch names as values
+        """
+        movers_dict = {}
+        
+        # Find movers in the appropriate graph
+        if mover_type == "backward":
+            graph = self.backward_graph
+        elif mover_type == "forward":
+            graph = self.forward_graph
+        else:
+            # If no type specified, include both graphs
+            backward_edges = list(self.backward_graph.edges(data=True))
+            forward_edges = list(self.forward_graph.edges(data=True))
+            all_edges = backward_edges + forward_edges
+            
+            for source, target, data in all_edges:
+                if source not in movers_dict:
+                    movers_dict[source] = []
+                movers_dict[source].append(target)
+            
+            return movers_dict
+        
+        # Process edges from the specific graph
+        for source, target, data in graph.edges(data=True):
+            if source not in movers_dict:
+                movers_dict[source] = []
+            movers_dict[source].append(target)
+            
+        return movers_dict
+    
+    def solve_backward(self):
         """
         Solve all backward movers in the circuit.
         
-        This performs backward operations (predecessor to successor)
-        using a topological sort of the backward graph.
+        This performs backward operations (starting from terminal perches)
+        using a reversed topological sort of the backward graph.
+        """
+        # Check that we have at least one backward mover
+        if not self.movers_backward_exist:
+            raise RuntimeError("Cannot solve backwards: No backward movers exist")
+            
+        # Check if any perch has a comp value - we need initial values
+        initial_perches = [name for name, perch in self.perches.items() if perch.comp is not None]
+        if not initial_perches:
+            raise RuntimeError("Cannot solve backwards: No perch has a comp value")
+            
+        print("Perches with initial comp values:", initial_perches)
+            
+        # Create a topological sort of the backward graph
+        try:
+            # In backward graph: A->B means B's value depends on A's
+            # So we want to solve in the order of the topological sort
+            topo_order = list(nx.topological_sort(self.backward_graph))
+            print("Topological order:", topo_order)
+            
+            if not topo_order:
+                raise RuntimeError("Cannot solve backwards: Backward graph is empty")
+                
+        except nx.NetworkXUnfeasible:
+            # Graph has cycles
+            raise RuntimeError("Backward graph contains cycles; cannot perform topological sort")
+            
+        # Debug output of all movers
+        print("Checking all movers in backward graph:")
+        for source, target, mover_data in self.backward_graph.edges(data=True):
+            mover = mover_data.get("mover")
+            if mover:
+                print(f"Edge {source} -> {target}:")
+                print(f"  Mover type: {mover.edge_type}")
+                print(f"  Has comp: {mover.has_comp}")
+                print(f"  comp: {mover.comp}")
+                print(f"  Source perch keys: {mover.source_keys}")
+                print(f"  Target perch key: {mover.target_key}")
+                
+                # Debug perch data
+                source_perch_data = self.perches[source].get_data(mover.source_keys[0]) if mover.source_keys else None
+                target_perch_data = self.perches[target].get_data(mover.target_key) if mover.target_key else None
+                print(f"  Source perch data: {source_perch_data}")
+                print(f"  Target perch data: {target_perch_data}")
+            
+        # Solve iteratively - repeat until no changes are made
+        iteration = 0
+        made_changes = True
+        
+        # Keep track of previous values to detect actual changes
+        previous_values = {}
+        for perch_name, perch in self.perches.items():
+            previous_values[perch_name] = {}
+            for key in perch.get_data_keys():
+                previous_values[perch_name][key] = perch.get_data(key)
+        
+        while made_changes:
+            iteration += 1
+            print(f"Backward solving iteration {iteration}")
+            made_changes = False  # Reset flag for this iteration
+            
+            # Limit iterations to prevent infinite loops
+            if iteration > 100:  # Set a reasonable limit
+                print("Maximum iterations reached. Stopping backward solve.")
+                break
+            
+            for source, target, mover_data in self.backward_graph.edges(data=True):
+                source_perch = self.perches[source]
+                target_perch = self.perches[target]
+                
+                # Check if source has the required source key values
+                source_has_data = True
+                source_comp = None
+                if mover_data.get("mover") and mover_data["mover"].source_keys:
+                    source_key = mover_data["mover"].source_keys[0] # backward movers typically only have one source key
+                    source_comp = source_perch.get_data(source_key)
+                    source_has_data = source_comp is not None
+                    
+                print(f"Checking edge {source} -> {target}:")
+                print(f"  Source comp: {source_comp}")
+                print(f"  Target comp: {target_perch.comp}")
+                
+                if not source_has_data:
+                    # Skip if source doesn't have the required data
+                    continue
+                    
+                # Get the mover for this edge
+                mover = mover_data.get("mover")
+                
+                if mover and mover.has_comp:
+                    try:
+                        print(f"Executing backward mover from {source} to {target}")
+                        
+                        # Store previous value to detect changes
+                        previous_target_value = None
+                        if mover.target_key:
+                            previous_target_value = target_perch.get_data(mover.target_key)
+                        
+                        # Use our execute_mover method for consistency
+                        result = self.execute_mover(source, target, "backward")
+                        
+                        # Check if the target value has actually changed
+                        current_target_value = None
+                        if mover.target_key:
+                            current_target_value = target_perch.get_data(mover.target_key)
+                            
+                        # Compare values properly for any data type
+                        value_changed = False
+                        if previous_target_value is None and current_target_value is not None:
+                            value_changed = True
+                        elif current_target_value is None and previous_target_value is not None:
+                            value_changed = True
+                        elif isinstance(previous_target_value, np.ndarray) and isinstance(current_target_value, np.ndarray):
+                            # Special handling for NumPy arrays
+                            value_changed = not np.array_equal(previous_target_value, current_target_value)
+                        elif hasattr(previous_target_value, "__eq__") and previous_target_value is not None:
+                            # Most objects have __eq__ defined, so use it
+                            value_changed = previous_target_value != current_target_value
+                        else:
+                            # Fallback to id comparison for objects without proper equality
+                            value_changed = id(previous_target_value) != id(current_target_value)
+                            
+                        if value_changed:
+                            print(f"  Value changed: {previous_target_value} -> {current_target_value}")
+                            made_changes = True
+                        
+                    except Exception as e:
+                        print(f"Error executing backward mover from {source} to {target}: {e}")
+        
+        # Check if backward solve was successful
+        if not any(perch.comp is not None for perch in self.perches.values()):
+            print("Backward solve failed: No perch has a comp value after solving")
+        else:
+            print("Backward solve completed successfully with changes made.")
+            
+        # Flag the circuit as solved if all perches have comp
+        if all(perch.comp is not None for perch in self.perches.values()):
+            self.is_solved = True
+    
+    def solve_forward(self) -> None:
+        """
+        Solve all forward movers in the circuit.
+        
+        This performs forward operations (predecessor to successor)
+        using a topological sort of the forward graph.
         
         Raises
         ------
         RuntimeError
             If the circuit is not solvable.
         """
-        if not self.is_solvable:
-            raise RuntimeError("Circuit is not solvable. Check if terminal perches have comp values.")
+        # Check if any perch has a comp value - otherwise we can't simulate
+        if not any(perch.comp is not None for perch in self.perches.values()):
+            raise RuntimeError("Cannot simulate forward pass: No perch has a comp value.")
         
-        # Find all terminal perches (no outgoing edges in backward graph)
-        terminal_perches = set(self._get_terminal_perches("backward"))
+        # Find initial perches (those with both comp and sim values)
+        initial_perches = []
+        for name, perch in self.perches.items():
+            if perch.comp is not None and perch.sim is not None:
+                initial_perches.append(name)
         
-        # Ensure at least one terminal perch has a function initialized
-        if not any(self.perches[p].comp is not None for p in terminal_perches):
-            raise RuntimeError("No terminal perch has a comp value. Cannot start backward solve.")
+        if not initial_perches:
+            raise RuntimeError("Cannot simulate forward pass: No perch has both comp and sim values.")
         
-        # We need to traverse the graph in reverse topological order
+        print(f"Initial perches for forward solving: {initial_perches}")
+        
+        # Keep track of previous values to detect actual changes
+        previous_values = {}
+        for perch_name, perch in self.perches.items():
+            previous_values[perch_name] = {}
+            for key in perch.get_data_keys():
+                previous_values[perch_name][key] = perch.get_data(key)
+        
+        # Get topological order for the forward graph
         try:
-            # Get the topological ordering of the backward graph
-            topo_order = list(nx.topological_sort(self.backward_graph))
-            
-            # Reverse it to go from terminal perches backward
-            for target_name in reversed(topo_order):
-                # Get all incoming edges (from source to target)
-                for source_name in self.backward_graph.predecessors(target_name):
-                    # Execute the backward mover from source to target
-                    self.execute_mover(source_name, target_name, edge_type="backward")
-                
-        except nx.NetworkXUnfeasible:
-            raise RuntimeError("Backward graph contains cycles; cannot perform topological sort")
-            
-        # Mark as solved
-        self.is_solved = True
-    
-    def solve_forward(self) -> None:
-        """
-        Simulate all forward movers in the circuit.
-        
-        This performs forward operations (successor to predecessor)
-        using a topological sort of the forward graph.
-        
-        Raises
-        ------
-        RuntimeError
-            If the circuit is not solved or lacks initial sim values.
-        """
-        if not self.is_solved:
-            raise RuntimeError("Cannot simulate forward pass: Backward solve not completed yet.")
-        
-        # Find all initial perches (no incoming edges in forward graph)
-        initial_perches = set(self._get_initial_perches("forward"))
-        
-        # Ensure at least one initial perch has a distribution initialized
-        if not any(self.perches[p].sim is not None for p in initial_perches):
-            raise RuntimeError("No initial perch has a sim value. Cannot start forward simulation.")
-        
-        # Traverse the graph in topological order for forward simulation
-        try:
-            # Get the topological ordering of the forward graph
             topo_order = list(nx.topological_sort(self.forward_graph))
             
-            # Go from initial perches forward
-            for source_name in topo_order:
-                # Get all outgoing edges (from source to target)
-                for target_name in self.forward_graph.neighbors(source_name):
-                    # Execute the forward mover from source to target
-                    self.execute_mover(source_name, target_name, edge_type="forward")
+            # Solve iteratively - repeat until no changes are made
+            iteration = 0
+            made_changes = True
+            
+            while made_changes:
+                iteration += 1
+                made_changes = False  # Reset flag for this iteration
                 
-        except nx.NetworkXUnfeasible:
+                # Limit iterations to prevent infinite loops
+                if iteration > 100:  # Set a reasonable limit
+                    print("Maximum iterations reached. Stopping forward solve.")
+                    break
+                
+                # Process perches in topological order
+                for perch_name in topo_order:
+                    # Skip perches that already have sim values from initialization
+                    if perch_name in initial_perches and iteration == 1:
+                        continue
+                        
+                    # Find all predecessors of this perch in the forward graph
+                    predecessors = list(self.forward_graph.predecessors(perch_name))
+                    
+                    # Skip if no predecessors (and not an initial perch)
+                    if not predecessors:
+                        continue
+                        
+                    # Try each predecessor to see if we can compute this perch's sim value
+                    for pred in predecessors:
+                        # Skip predecessors that don't have sim values
+                        if self.perches[pred].sim is None:
+                            continue
+                            
+                        # Get the mover from predecessor to this perch
+                        mover = self.forward_graph[pred][perch_name].get("mover")
+                        if not mover or not mover.has_comp:
+                            continue
+                            
+                        # Store previous value to detect changes
+                        previous_value = None
+                        if mover.target_key:
+                            previous_value = self.perches[perch_name].get_data(mover.target_key)
+                        
+                        # Use our execute_mover method for consistency
+                        try:
+                            result = self.execute_mover(pred, perch_name, "forward")
+                            
+                            # Check if the target value has actually changed
+                            current_value = None
+                            if mover.target_key:
+                                current_value = self.perches[perch_name].get_data(mover.target_key)
+                                
+                            # Compare values properly for any data type
+                            value_changed = False
+                            if previous_value is None and current_value is not None:
+                                value_changed = True
+                            elif current_value is None and previous_value is not None:
+                                value_changed = True
+                            elif isinstance(previous_value, np.ndarray) and isinstance(current_value, np.ndarray):
+                                # Special handling for NumPy arrays
+                                value_changed = not np.array_equal(previous_value, current_value)
+                            elif hasattr(previous_value, "__eq__") and previous_value is not None:
+                                # Most objects have __eq__ defined, so use it
+                                value_changed = previous_value != current_value
+                            else:
+                                # Fallback to id comparison for objects without proper equality
+                                value_changed = id(previous_value) != id(current_value)
+                                
+                            if value_changed:
+                                print(f"  Value changed: {previous_value} -> {current_value}")
+                                made_changes = True
+                        except Exception as e:
+                            print(f"Error executing forward mover from {pred} to {perch_name}: {e}")
+            
+            print("Forward solve complete.")
+        except nx.NetworkXError:
             raise RuntimeError("Forward graph contains cycles; cannot perform topological sort")
             
-        # Mark as simulated
-        self.is_simulated = True
+        # Mark as simulated if any sim values were generated
+        if any(perch.sim is not None for perch in self.perches.values()):
+            self.is_simulated = True
     
-    def solve(self, backward_only: bool = False, forward_only: bool = False) -> None:
+    def solve(self):
         """
-        Solve the entire circuit by executing all movers in the appropriate order.
+        Solve the circuit by running backward and forward solving in sequence.
         
-        By default, performs both backward and forward solving. Can be restricted to
-        just one direction using the arguments.
+        This method will:
+        1. Solve backward to populate comp values for all perches
+        2. Solve forward to populate sim values for all perches
         
-        Parameters
-        ----------
-        backward_only : bool
-            If True, only perform backward solving.
-        forward_only : bool
-            If True, only perform forward simulation.
+        Returns
+        -------
+        bool
+            True if the circuit was solved successfully, False otherwise.
             
         Raises
         ------
         RuntimeError
-            If the circuit is not solvable or correctly initialized.
-        ValueError
-            If both backward_only and forward_only are True.
+            If the circuit is not solvable or an error occurs during solving.
         """
-        if backward_only and forward_only:
-            raise ValueError("Cannot specify both backward_only and forward_only as True")
-        
-        # Check solvability
-        if not self.is_solvable and not self._check_solvability():
-            raise RuntimeError("Circuit is not solvable. Ensure proper initialization.")
-        
-        # Determine which passes to run
-        do_backward = not forward_only
-        do_forward = not backward_only
-        
-        # Execute backwards pass if needed
-        if do_backward and self.movers_backward_exist:
+        # Check that the circuit is finalized and has a model
+        if not self.has_model:
+            raise RuntimeError("Cannot solve: Circuit model is not finalized")
+            
+        # Check if the circuit is solvable
+        if not self.is_solvable:
+            raise RuntimeError("Cannot solve: Circuit is not solvable (missing terminal values)")
+            
+        # Solve backward to compute comp values
+        try:
             self.solve_backward()
-        
-        # Execute forwards pass if needed and if we have forward edges
-        if do_forward and self.forward_graph.edges():
-            # If we just did a backward solve, we're ready to go forward
-            # If not, check if we're already solved
-            if not do_backward and not self.is_solved:
-                raise RuntimeError("Cannot perform forward simulation without backward solve")
+        except Exception as e:
+            print(f"Error during backward solving: {e}")
+            return False
+            
+        # Solve forward to compute sim values
+        try:
             self.solve_forward()
+        except Exception as e:
+            print(f"Error during forward solving: {e}")
+            return False
+            
+        # Update circuit status
+        self.is_solved = True
+        
+        return True
     
     def get_perch_data(self, perch_name: str, key: str) -> Any:
         """

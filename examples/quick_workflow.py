@@ -41,17 +41,29 @@ def main():
     
     # Define operations (simple functions)
     def square(data):
-        """Square the comp value (backward operation)"""
-        comp_value = data.get("comp")
-        if comp_value is not None:
-            return {"comp": comp_value**2}
+        """Square the up value (backward operation)"""
+        # Handle both dictionary inputs and direct scalar inputs
+        if isinstance(data, dict):
+            up_value = data.get("up")
+        else:
+            # If data is directly a scalar value
+            up_value = data
+            
+        if up_value is not None:
+            return {"up": up_value**2}
         return {}
     
     def add_ten(data):
-        """Add 10 to the sim value (forward operation)"""
-        sim_value = data.get("sim")
-        if sim_value is not None:
-            return {"sim": sim_value + 10}
+        """Add 10 to the down value (forward operation)"""
+        # Handle both dictionary inputs and direct scalar inputs
+        if isinstance(data, dict):
+            down_value = data.get("down")
+        else:
+            # If data is directly a scalar value
+            down_value = data
+            
+        if down_value is not None:
+            return {"down": down_value + 10}
         return {}
     
     # Create and solve a circuit in one high-level call
@@ -61,9 +73,9 @@ def main():
         
         # Circuit Creation - Define perches (formerly nodes)
         nodes=[
-            {"id": "A", "data_types": {"comp": None, "sim": None}},
-            {"id": "B", "data_types": {"comp": None, "sim": None}},
-            {"id": "C", "data_types": {"comp": None, "sim": None}}
+            {"id": "A", "data_types": {"up": None, "down": None}},
+            {"id": "B", "data_types": {"up": None, "down": None}},
+            {"id": "C", "data_types": {"up": None, "down": None}}
         ],
         
         # Configuration - Define movers (formerly edges) with operations
@@ -71,27 +83,27 @@ def main():
             # Backward mover: B → A
             {"source": "B", "target": "A", 
              "operation": square, 
-             "source_key": "comp", "target_key": "comp",
+             "source_key": "up", "target_key": "up",
              "edge_type": "backward"},
             
             # Forward mover: A → B
             {"source": "A", "target": "B", 
              "operation": add_ten,
-             "source_key": "sim", "target_key": "sim", 
+             "source_key": "down", "target_key": "down", 
              "edge_type": "forward"},
             
             # Forward mover: B → C
             {"source": "B", "target": "C", 
              "operation": add_ten,
-             "source_key": "sim", "target_key": "sim",
+             "source_key": "down", "target_key": "down",
              "edge_type": "forward"}
         ],
         
         # Initialization - Set initial values
         initial_values={
-            "A": {"comp": None, "sim": None},  # Initialize perch A with None
-            "B": {"comp": 5, "sim": None},     # Initial comp value at perch B
-            "C": {"comp": None, "sim": None}   # Initialize perch C with None
+            "A": {"up": 0, "down": 5},  # Initial terminal value for backward solving and initial down
+            "B": {"up": 5, "down": None},  # Initial up value at perch B
+            "C": {"up": None, "down": None}  # Initialize perch C with None
         }
     )
     
@@ -104,27 +116,27 @@ def main():
     print(f"- is_simulated: {circuit.is_simulated}")
     
     # Access results (using get_perch_data instead of get_node_data)
-    a_comp = circuit.get_perch_data("A", "comp")
-    a_sim = circuit.get_perch_data("A", "sim")
-    b_comp = circuit.get_perch_data("B", "comp")
-    b_sim = circuit.get_perch_data("B", "sim")
-    c_comp = circuit.get_perch_data("C", "comp")
-    c_sim = circuit.get_perch_data("C", "sim")
+    a_up = circuit.get_perch_data("A", "up")
+    a_down = circuit.get_perch_data("A", "down")
+    b_up = circuit.get_perch_data("B", "up")
+    b_down = circuit.get_perch_data("B", "down")
+    c_up = circuit.get_perch_data("C", "up")
+    c_down = circuit.get_perch_data("C", "down")
     
     print("\nRESULTS:")
-    print(f"Perch A - comp: {a_comp}, sim: {a_sim}")   # comp: 5² = 25, sim: None initially
-    print(f"Perch B - comp: {b_comp}, sim: {b_sim}")   # comp: 5, sim: A's sim + 10 = None + 10
-    print(f"Perch C - comp: {c_comp}, sim: {c_sim}")   # comp: None, sim: B's sim + 10
+    print(f"Perch A - up: {a_up}, down: {a_down}")   # up: 5² = 25, down: None initially
+    print(f"Perch B - up: {b_up}, down: {b_down}")   # up: 5, down: A's down + 10 = None + 10
+    print(f"Perch C - up: {c_up}, down: {c_down}")   # up: None, down: B's down + 10
     
     print("\nHow it works internally:")
     print("1. Circuit Creation: Creates perches A, B, C and connects them with movers")
     print("2. Model Finalization: Finalizes the circuit board model")
     print("3. Portability: Makes the circuit portable for serialization")
-    print("4. Initialization: Sets initial value for perch B (comp=5)")
+    print("4. Initialization: Sets initial value for perch B (up=5)")
     print("5. Solution: Executes operations in order:")
-    print("   - Backward: B (comp=5) → A, applying square: 5² = 25")
-    print("   - Forward: A (sim=None) → B, applying add_ten (if sim were not None)")
-    print("   - Forward: B (sim=None) → C, applying add_ten (if sim were not None)")
+    print("   - Backward: B (up=5) → A, applying square: 5² = 25")
+    print("   - Forward: A (down=None) → B, applying add_ten (if down were not None)")
+    print("   - Forward: B (down=None) → C, applying add_ten (if down were not None)")
 
 if __name__ == "__main__":
     main() 

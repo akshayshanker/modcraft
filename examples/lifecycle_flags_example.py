@@ -32,7 +32,13 @@ except ImportError:
 # Define computational methods for our movers
 def backward_operation(data):
     """Square the comp value (backward operation)"""
-    x = data.get("comp")
+    # Handle both dictionary inputs and direct scalar inputs
+    if isinstance(data, dict):
+        x = data.get("comp")
+    else:
+        # If data is directly a scalar value
+        x = data
+        
     if x is not None:
         # Return dictionary with the transformed comp value
         return {"comp": x**2}
@@ -40,11 +46,22 @@ def backward_operation(data):
 
 def forward_operation(data):
     """Transform sim based on comp (forward operation)"""
-    comp = data.get("comp")
-    sim = data.get("sim") 
+    # Handle both dictionary inputs and direct scalar/tuple inputs
+    if isinstance(data, dict):
+        comp = data.get("comp")
+        sim = data.get("sim")
+        parameters = data.get("parameters", {})
+    else:
+        # If we receive a tuple of (comp, sim)
+        if isinstance(data, tuple) and len(data) >= 2:
+            comp, sim = data[:2]
+            parameters = {"scale": 0.5}  # Default scale
+        else:
+            return {}
+            
     if comp is not None and sim is not None:
         # Multiply the sim value by the parameter value and add comp
-        scale = data.get("parameters", {}).get("scale", 0.5)
+        scale = parameters.get("scale", 0.5) if isinstance(parameters, dict) else 0.5
         return {"sim": sim + scale * comp}
     return {}
 

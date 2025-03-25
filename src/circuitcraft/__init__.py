@@ -10,7 +10,7 @@ even after they have been solved.
 """
 
 # Version information
-__version__ = "1.2.1"  # Updated from 1.2.0: Added comprehensive documentation structure
+__version__ = "1.3.1"  # Updated from 1.3.0: Renamed perch.comp to perch.up and perch.sim to perch.down
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import pickle
@@ -111,11 +111,11 @@ def create_and_solve_circuit(name: str,
         else:
             data_types = node_spec.get('data_types', {})
         
-        # Ensure data has comp and sim
-        if 'comp' not in data_types:
-            data_types['comp'] = None
-        if 'sim' not in data_types:
-            data_types['sim'] = None
+        # Ensure data has up and down (formerly comp and sim)
+        if 'up' not in data_types:
+            data_types['up'] = None
+        if 'down' not in data_types:
+            data_types['down'] = None
             
         circuit.add_perch(Perch(node_id, data_types))
     
@@ -247,9 +247,9 @@ def create_and_solve_backward_circuit(
         else:
             data_types = node_spec.get('data_types', {})
         
-        # Ensure data has comp
-        if 'comp' not in data_types:
-            data_types['comp'] = None
+        # Ensure data has up
+        if 'up' not in data_types:
+            data_types['up'] = None
             
         circuit.add_perch(Perch(node_id, data_types))
     
@@ -258,8 +258,8 @@ def create_and_solve_backward_circuit(
         source = edge_spec['source']
         target = edge_spec['target']
         operation = edge_spec.get('operation')
-        source_key = edge_spec.get('source_key', 'comp')
-        target_key = edge_spec.get('target_key', 'comp')
+        source_key = edge_spec.get('source_key', 'up')
+        target_key = edge_spec.get('target_key', 'up')
         parameters = edge_spec.get('parameters', {})
         numerical_hyperparameters = edge_spec.get('numerical_hyperparameters', {})
         

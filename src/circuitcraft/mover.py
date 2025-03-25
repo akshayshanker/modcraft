@@ -151,18 +151,18 @@ class Mover:
             "numerical_hyperparameters": self.numerical_hyperparameters
         })
         
-    def execute(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, data: Any) -> Any:
         """
         Execute the mover's comp function with the provided data.
         
         Parameters
         ----------
-        data : Dict[str, Any]
-            Input data for the comp function.
+        data : Any
+            Input data for the comp function. This can be a dictionary, array, or any other data type.
             
         Returns
         -------
-        Dict[str, Any]
+        Any
             Result from executing the comp function.
             
         Raises

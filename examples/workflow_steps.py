@@ -43,22 +43,43 @@ except ImportError:
 # Define computational methods
 def square(data):
     """Square the comp value."""
-    comp = data.get("comp")
+    # Handle both dictionary inputs and direct scalar inputs
+    if isinstance(data, dict):
+        comp = data.get("comp")
+    else:
+        # If data is directly a scalar value
+        comp = data
+        
     if comp is not None:
         return {"comp": comp**2}
     return {}
 
 def add_one(data):
     """Add 1 to the comp value."""
-    comp = data.get("comp")
+    # Handle both dictionary inputs and direct scalar inputs
+    if isinstance(data, dict):
+        comp = data.get("comp")
+    else:
+        # If data is directly a scalar value
+        comp = data
+        
     if comp is not None:
         return {"comp": comp + 1}
     return {}
 
 def transform_sim(data):
     """Transform the sim value using the comp value."""
-    comp = data.get("comp")
-    sim = data.get("sim")
+    # Handle both dictionary inputs and direct scalar/tuple inputs
+    if isinstance(data, dict):
+        comp = data.get("comp")
+        sim = data.get("sim")
+    else:
+        # If we receive a tuple of (comp, sim)
+        if isinstance(data, tuple) and len(data) >= 2:
+            comp, sim = data[:2]
+        else:
+            return {}
+            
     if comp is not None and sim is not None:
         return {"sim": sim + 0.1 * comp}
     return {}

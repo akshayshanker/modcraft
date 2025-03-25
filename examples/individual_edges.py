@@ -125,7 +125,13 @@ def main():
         if operation == "square":
             def square_comp(data):
                 """Square each element in a vector"""
-                vector = data.get("vector")
+                # Handle both dictionary inputs and direct numpy array inputs
+                if isinstance(data, dict):
+                    vector = data.get("vector")
+                else:
+                    # If data is directly the numpy array
+                    vector = data
+                    
                 if vector is not None:
                     return {"vector": vector**2}
                 return {}
@@ -134,8 +140,16 @@ def main():
         elif operation == "transform":
             def transform_comp(data):
                 """Transform a matrix using a vector"""
-                matrix = data.get("matrix")
-                vector = data.get("vector")
+                # Handle both dictionary inputs and direct numpy array inputs
+                if isinstance(data, dict):
+                    matrix = data.get("matrix")
+                    vector = data.get("vector")
+                else:
+                    # If we receive a tuple of (matrix, vector)
+                    if isinstance(data, tuple) and len(data) == 2:
+                        matrix, vector = data
+                    else:
+                        return {}
                 
                 if matrix is not None and vector is not None:
                     # Create a column vector
@@ -231,20 +245,33 @@ def main():
     circuit.set_perch_data("perch_1", {"vector": initial_vector, "matrix": None})
     circuit.set_perch_data("perch_2", {"vector": None, "matrix": None})
     
-    # Solve the circuit in one step
-    circuit.solve()
-    print(f"Circuit solved: {circuit.is_solved} and simulated: {circuit.is_simulated}")
+    # Check if circuit is solvable
+    if not circuit.is_solvable:
+        print("Circuit is not solvable. Setting terminal values...")
+        # In this example, we need to ensure perch_0 has vector value for backward solving
+        # and perch_0 has matrix value for forward simulation
+        circuit.set_perch_data("perch_0", {"vector": np.array([0.0, 0.0, 0.0])})
+        print(f"Is circuit solvable now? {circuit.is_solvable}")
     
-    # Get the results
-    perch0_vector = circuit.get_perch_data("perch_0", "vector")
-    perch1_matrix = circuit.get_perch_data("perch_1", "matrix")
-    perch2_matrix = circuit.get_perch_data("perch_2", "matrix")
-    
-    # Print the results
-    print("\nRESULTS AFTER FULL SOLUTION:")
-    print(f"perch_0 vector: {perch0_vector}")
-    print(f"perch_1 matrix shape: {perch1_matrix.shape if perch1_matrix is not None else 'None'}")
-    print(f"perch_2 matrix shape: {perch2_matrix.shape if perch2_matrix is not None else 'None'}")
+    try:
+        # Solve the circuit in one step
+        circuit.solve()
+        print(f"Circuit solved: {circuit.is_solved} and simulated: {circuit.is_simulated}")
+        
+        # Get the results
+        perch0_vector = circuit.get_perch_data("perch_0", "vector")
+        perch1_matrix = circuit.get_perch_data("perch_1", "matrix")
+        perch2_matrix = circuit.get_perch_data("perch_2", "matrix")
+        
+        # Print the results
+        print("\nRESULTS AFTER FULL SOLUTION:")
+        print(f"perch_0 vector: {perch0_vector}")
+        print(f"perch_1 matrix shape: {perch1_matrix.shape if perch1_matrix is not None else 'None'}")
+        print(f"perch_2 matrix shape: {perch2_matrix.shape if perch2_matrix is not None else 'None'}")
+    except RuntimeError as e:
+        print(f"Error solving circuit: {e}")
+        print("Note: This circuit may not be solvable as a whole due to its structure.")
+        print("Consider using individual mover execution as demonstrated earlier.")
     
     print("\nLifecycle flags at end of execution:")
     print(f"has_empty_perches: {circuit.has_empty_perches}")
