@@ -6,7 +6,7 @@ CircuitCraft is a graph-based framework for computing functional operations on a
 > This project began as a fork of the [Graph-Craft repository](https://github.com/mhalls-moore/graph-craft) but has since 
 > undergone complete redesign and implementation overhaul.
 > 
-> This is a highly experimental fork and should not be used for production or citation purposes.
+> This is an incomplete and highly experimental fork and should not be used for production or citation purposes.
 
 ## Motivation
 
