@@ -1,6 +1,13 @@
 # CircuitCraft
 
 CircuitCraft is a graph-based framework for computing functional operations on arbitrary mathematical objects, with a circuit-based architecture that represents both the objects and their transformations. The main focus is on economic modeling, fixed point problems, and distributional analysis.
+
+> [!IMPORTANT]
+> This project began as a fork of the [Graph-Craft repository](https://github.com/mhalls-moore/graph-craft) but has since 
+> undergone complete redesign and implementation overhaul.
+> 
+> This is a highly experimental fork and should not be used for production or citation purposes.
+
 ## Motivation
 
 CircuitCraft addresses a key limitation in existing graph based computational frameworks: they focus on operations as nodes without coherently representing the mathematical objects being transformed. CircuitCraft treats mathematical objects as nodes (perches) and transformations as edges (movers).
